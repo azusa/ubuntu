@@ -9,3 +9,6 @@ set -eux
 # yum install -y curl wget git tmux firefox xvfb
 
 apt-get install -y ifupdown
+apt-get install -y ansible
+mkdir -p /tmp/ansible-local/provision
+chown -R vagrant:vagrant /tmp/ansible-local

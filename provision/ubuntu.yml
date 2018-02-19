@@ -1,0 +1,107 @@
+- hosts: ubuntu
+  become: yes
+  tasks:
+    - name: "FIX: Ubuntu 16.04 LTS doesn't come with certain modules, required by ansible"
+      raw: apt-get install python-minimal aptitude -y
+      become: true
+      become_user: root
+      become_method: sudo
+    - name: update locale
+      shell: |
+        apt-get install -y language-pack-ja
+        update-locale LANG=ja_JP.UTF-8
+    - name: apt update
+      apt: update_cache=yes    
+    - name: upgrade all packages
+      apt: upgrade=full
+    - name: install zsh
+      apt: name=zsh
+    - name: install wget
+      apt: name=wget
+    - name: install build-essential
+      apt: name=build-essential
+    - name: install git
+      apt: name=git
+    - name: check dotfiles
+      shell: test -d /home/vagrant/dotfiles
+      register: dotfiles_result
+      ignore_errors: true
+    - name: check .vim/bundle
+      shell: test -d /home/vagrant/.vim/bundle
+      register: bundle_result
+      ignore_errors: true
+    - name: clone bundle
+      git:
+        repo: http://github.com/gmarik/vundle.git
+        dest: //home/vagrant/.vim/bundle/vundle
+      become: vagrant
+      when: bundle_result|failed
+    - name: clone dotfiles
+      git:
+        repo: https://github.com/azusa/dotfiles.git
+        dest: /home/vagrant/dotfiles
+      become: vagrant
+      when: dotfiles_result|failed
+    - name: link dotfiles
+      file: src=/home/vagrant/dotfiles/.zshrc dest=/home/vagrant/.zshrc state=link
+      become: vagrant
+    - name: link dotfiles
+      file: src=/home/vagrant/dotfiles/.vimrc dest=/home/vagrant/.vimrc state=link
+      become: vagrant
+    - name: apt install for rbenv
+      apt: name="{{ item }}" state=present
+      with_items:
+        - ruby-build
+    - name: check rbenv
+      shell: grep rbenv /home/vagrant/.zshlocal
+      become: vagrant
+      register: rbenv_result
+      ignore_errors: true
+    - name: install rbenv
+      shell: |
+        git clone https://github.com/rbenv/rbenv.git /home/vagrant/.rbenv
+        git clone https://github.com/rbenv/ruby-build.git /home/vagrant/.rbenv/plugins/ruby-build
+        echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> /home/vagrant/.zshrc
+        echo 'export SHELL=/usr/bin/zsh' >> /home/vagrant/.zshlocal
+        echo 'eval "$(rbenv init - zsh)"' >> /home/vagrant/.zshlocal
+      become: vagrant
+      when: rbenv_result|failed
+    - name: check nodebrew
+      shell: grep nodebrew /home/vagrant/.zshlocal
+      become: vagrant
+      register: nodebrew_result
+      ignore_errors: true
+    - name: install nodebrew
+      shell: |
+        curl -L git.io/nodebrew | perl - setup
+        echo 'export PATH=$HOME/.nodebrew/current/bin:$PATH' >> /home/vagrant/.zshlocal
+      become: vagrant
+      when: nodebrew_result|failed
+    - user:
+        name: vagrant
+        shell: /usr/bin/zsh
+    - name: clone vim
+      git:
+        repo: https://github.com/vim/vim.git
+        dest: /tmp/vim
+    - name: check vim
+      shell: test -f /usr/local/bin/vim
+      register: vim_result
+      ignore_errors: true
+    - name: install vim
+      shell: |
+        cd /tmp/vim/src
+        ./configure --prefix=/usr/local
+        make
+        make install
+      when: vim_result|failed
+    - name: link vi
+      file: src=/usr/local/bin/vim dest=/usr/local/bin/vi state=link
+    - name: install tools
+      shell: |
+        export PATH=$HOME/.rbenv/bin:$HOME/.nodebrew/current/bin:$PATH
+        rbenv install 2.5.0
+        nodebrew install v8.9.4
+      become: vagrant
+                
+
